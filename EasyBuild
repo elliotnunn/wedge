@@ -1,0 +1,26 @@
+Set Parent "`Files -f "{0}" | StreamEdit -d -e '/((Å:)*)¨1([Â:]*)/ Print ¨1'`"
+SetDirectory "{Parent}"
+
+Set IM :Intermediates:
+Set Apps :Apps:
+
+NewFolder {IM} · Dev:Null || Set Status 0
+NewFolder {Apps} · Dev:Null || Set Status 0
+
+Make {IM}RomWedge.x {IM}Linker {Apps}TestWedge {Apps}WedgeLogReader > {IM}MakeOut
+{IM}MakeOut
+
+If !{#}
+	Echo Next time, pass the address of your ROM(s) as an argument,
+	Echo and the Wedge will be inserted.
+	Exit
+End
+
+Loop
+	If !{#}
+		Break
+	End
+
+	{IM}Linker "{1}" {IM}RomWedge.x
+	Shift
+End
