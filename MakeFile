@@ -13,6 +13,8 @@ SiowLibsPPC = ¶
 					"{SharedLibraries}MathLib"			¶
 					"{PPCLibraries}PPCCRuntime.o"		¶
 
+PPCCOptions = -w 2
+
 IM = :Intermediates:
 Apps = :Apps:
 
