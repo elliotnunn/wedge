@@ -21,6 +21,6 @@ Loop
 		Break
 	End
 
-	{IM}Linker "{1}" {IM}RomWedge.x
+	{IM}Linker "{1}" {IM}RomWedge.x Wedge.c
 	Shift
 End

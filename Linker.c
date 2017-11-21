@@ -53,16 +53,16 @@ int main(int argc, char *argv[])
 {
 	FILE *fp;
 
-	char *blob[2];
-	long size[2];
+	char *blob[3];
+	long size[3];
 	int i;
 
-	if(argc != 3) {
-		fprintf(stderr, "Usage: %s ROM WEDGE\n", argv[0]);
+	if(argc != 4) {
+		fprintf(stderr, "Usage: %s ROM WEDGE C\n", argv[0]);
 		return 1;
 	}
 
-	for(i=0; i<2; i++) /* Two or more, use a for. */
+	for(i=0; i<3; i++) /* Two or more, use a for. */
 	{
 		char *fname = argv[i+1];
 
@@ -80,8 +80,13 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	if(size[1] > 0x20000) {
+	if(size[1] > 0x8000) {
 		fprintf(stderr, "%s: WEDGE is 0x%X bytes, to large\n", argv[0], size[1]);
+		return 1;
+	}
+
+	if(size[2] > 0x10000) {
+		fprintf(stderr, "%s: C is 0x%X bytes, to large\n", argv[0], size[2]);
 		return 1;
 	}
 
@@ -91,14 +96,18 @@ int main(int argc, char *argv[])
 		memcpy(blob[0] + 0x340000, blob[0] + 0x310000, 0x20000);
 
 		printf("Erasing original NanoKernel location.\n");
-		memset(blob[0] + 0x310000, 0, 0x20000);
+		memset(blob[0] + 0x310000, 0, 0x30000);
 	} else {
 		printf("NanoKernel already moved to 340000. Erasing old Wedge.\n");
-		memset(blob[0] + 0x310000, 0, 0x20000);
+		memset(blob[0] + 0x310000, 0, 0x30000);
 	}
 
-	printf("Copying Wedge (0x%X bytes).\n", size[1]);
+	printf("Copying Wedge code to 310000 (0x%X bytes).\n", size[1]);
 	memcpy(blob[0] + 0x310000, blob[1], size[1]);
+
+	printf("Copying C source into log at 320000 (0x%X bytes).\n", size[2]);
+	memcpy(blob[0] + 0x320000, blob[2], size[2]);
+	*(long *)(blob[0] + 0x320000 - 4) = size[2];
 
 	printf("Writing out.\n");
 

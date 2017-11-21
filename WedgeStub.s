@@ -48,8 +48,6 @@ Magic	equ		'Wdg_'
 	lisori	r20, PA_ROM + Middle
 	lisori	r0, 'WgLg'
 	stw		r0, -8(r20)
-	li		r0, 0
-	stw		r0, -4(r20)
 
 
 	;	Search for the string table (tested, works)
