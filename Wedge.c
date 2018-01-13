@@ -511,6 +511,169 @@ void DebugDumpPageMap(NKConfigurationInfo *ci)
 }
 
 
+void DebugDumpBanks(NKSystemInfo *si)
+{
+	unsigned long *thisbank;
+	int n = 0;
+	thisbank = (unsigned long *)(&si->Bank0Start);
+
+	printf("DebugDumpBanks:\n");
+
+	while(thisbank[1] != 0)
+	{
+		printf("%02d: %08x - %08x (%x b)\n", n, thisbank[0], thisbank[0] + thisbank[1] - 1, thisbank[1]);
+		n++;
+		thisbank += 2;
+	}
+}
+
+
+char *StealFromBank(NKSystemInfo *si, unsigned long len)
+{
+	/* Do not steal the first page of the first bank. Just don't */
+	/* Return NULL if we fail */
+
+	unsigned long *firstbank, *lastbank, *thisbank;
+	char *retaddr;
+
+	printf("StealFromBank: looking for 0x%x b... ", len);
+
+	firstbank = (unsigned long *)(&si->Bank0Start);
+	lastbank = (unsigned long *)(&si->Bank25Start);
+
+	/* Find the last real bank */
+	thisbank = firstbank;
+	while(thisbank <= lastbank && thisbank[1]) thisbank += 2;
+	lastbank = thisbank - 2;
+
+	/* Find a bank of appropriate size */
+	for(thisbank=lastbank; thisbank>=firstbank; thisbank-=2)
+	{
+		if(thisbank[1] >= len) break;
+	}
+
+	if(thisbank < firstbank || (thisbank == firstbank && len == firstbank[1]))
+	{
+		printf("No bank large enough.\n"); return NULL;
+	}
+
+	/* Now we're committed */
+
+	thisbank[1] -= len;
+	retaddr = (char *)thisbank[0] + thisbank[1];
+
+	/* Erase this bank if we have taken all its contents */
+	if(thisbank[1] == 0)
+	{
+		printf("using entire bank... ");
+		memcpy(thisbank, thisbank + 2, lastbank - thisbank);
+		lastbank[0] = lastbank[1] = 0;
+	}
+
+	printf("Found at 0x%08x\n", retaddr);
+
+	return retaddr;
+}
+
+
+char *StealFromBankAligned(NKSystemInfo *si, unsigned long len)
+{
+	unsigned long *firstbank, *lastbank, *thisbank;
+	int log = 0;
+	unsigned long bstart, bend, mystart, myend;
+
+	printf("StealFromBankAligned: looking for 0x%x b... ", len);
+
+	while((len >> log) > 1UL) log++;
+	if(len != (1UL << log))
+	{
+		printf("Size must be a power of two.\n"); return NULL;
+	}
+
+	firstbank = (unsigned long *)(&si->Bank0Start);
+	lastbank = (unsigned long *)(&si->Bank25Start);
+
+	/* Find the last real bank */
+	thisbank = firstbank;
+	while(thisbank <= lastbank && thisbank[1]) thisbank += 2;
+	lastbank = thisbank - 2;
+
+	/* Find a bank of appropriate size */
+	for(thisbank=lastbank; thisbank>=firstbank; thisbank-=2)
+	{
+		bstart = thisbank[0];
+		bend = thisbank[0] + thisbank[1];
+
+		myend = bend & ~(len - 1);
+		mystart = myend - len;
+
+		if(mystart >= bstart) break;
+	}
+
+	if(thisbank < firstbank || mystart == firstbank[0])
+	{
+		printf("No bank large enough.\n"); return NULL;
+	}
+
+	/* erase the bank that we're cannibalising */
+	memcpy(thisbank, thisbank + 2, (lastbank + 2 - thisbank) * sizeof *thisbank);
+	lastbank -= 2;
+
+	if(bstart < mystart) /* new bank to my left */
+	{
+		memcpy(thisbank + 2, thisbank, (lastbank + 2 - thisbank) * sizeof *thisbank);
+		thisbank[0] = bstart;
+		thisbank[1] = mystart - bstart;
+		thisbank += 2;
+		lastbank += 2;
+	}
+
+	if(myend < bend) /* new bank to my right */
+	{
+		memcpy(thisbank + 2, thisbank, (lastbank + 2 - thisbank) * sizeof *thisbank);
+		thisbank[0] = myend;
+		thisbank[1] = bend - myend;
+		thisbank += 2;
+		lastbank += 2;
+	}
+
+	printf("Found at 0x%08x\n", mystart);
+
+	return (char *)mystart;
+}
+
+
+int allocate256MBInSegment(NKConfigurationInfo *ci, NKSystemInfo *si, int seg)
+{
+	char *myspace;
+	const int log = 28; /* 256 MB */
+
+	printf("allocate256MBInSegment %d\n\n", seg);
+
+	printf("Pre-steal "); DebugDumpBanks(si); printf("\n");
+	myspace = StealFromBankAligned(si, 1UL << log); printf("\n");
+
+	if(myspace)
+	{
+		unsigned long ubat, lbat;
+		printf("Post-steal "); DebugDumpBanks(si); printf("\n");
+
+		ubat = /*BEPI*/ (unsigned long)seg << 24 | /*BL*/ ((1UL << (log - 17)) - 1) << 2 | /*Vs/Vp bits*/ 3;
+		lbat = /*BRPN*/ (unsigned long)myspace | /*WIMG*/ 2 << 3 | /*PP=RW*/ 2;
+
+		printf("New BAT: %08x %08x\n\n", ubat, lbat);
+		ci->BATRangeInit[10] = ubat;
+		ci->BATRangeInit[11] = lbat;
+
+		return 0;
+	}
+	else
+	{
+		return 1;
+	}
+}
+
+
 /* Main function for Wedge patch */
 
 void wedge(NKConfigurationInfo *ci, NKProcessorInfo *pi, NKSystemInfo *si, NKDiagnosticInfo *di, OSType rtasFour, unsigned long rtasProc, NKHWInfo *hi)
