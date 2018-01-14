@@ -1,5 +1,7 @@
 #include "PPCInfoRecordsPriv.h"
-#include <MacTypes.h>
+#include "Wedge.h"
+#include <string.h>
+#include <stdio.h>
 
 
 #define kFlagNone					0
@@ -34,36 +36,6 @@
 #define ROM							((char *)0x00c00000UL)
 #define Em							((long *)(ROM + 0x360000UL))
 #define MainCode					((unsigned short *)ROM)
-
-
-void *memcpy(void *dest, void *src, long n)
-{
-	long i;
-
-	char *d = (char *)dest;
-	char *s = (char *)src;
-
-	if(dest < src)			/* copy left to right */
-	{
-		for(i=0; i<n; i++) d[i] = s[i];
-	}
-	else					/* copy right to left */
-	{
-		for(i=n-1; i>=0; i--) d[i] = s[i];
-	}
-
-	return dest;
-}
-
-
-void *memset(void *dest, int v, long n)
-{
-	char *d = (char *)dest;
-
-	while(n) d[--n] = (char)v;
-
-	return dest;
-}
 
 
 struct PME
@@ -565,7 +537,7 @@ char *StealFromBank(NKSystemInfo *si, unsigned long len)
 	if(thisbank[1] == 0)
 	{
 		printf("using entire bank... ");
-		memcpy(thisbank, thisbank + 2, lastbank - thisbank);
+		memmove(thisbank, thisbank + 2, lastbank - thisbank);
 		lastbank[0] = lastbank[1] = 0;
 	}
 
@@ -615,12 +587,12 @@ char *StealFromBankAligned(NKSystemInfo *si, unsigned long len)
 	}
 
 	/* erase the bank that we're cannibalising */
-	memcpy(thisbank, thisbank + 2, (lastbank + 2 - thisbank) * sizeof *thisbank);
+	memmove(thisbank, thisbank + 2, (lastbank + 2 - thisbank) * sizeof *thisbank);
 	lastbank -= 2;
 
 	if(bstart < mystart) /* new bank to my left */
 	{
-		memcpy(thisbank + 2, thisbank, (lastbank + 2 - thisbank) * sizeof *thisbank);
+		memmove(thisbank + 2, thisbank, (lastbank + 2 - thisbank) * sizeof *thisbank);
 		thisbank[0] = bstart;
 		thisbank[1] = mystart - bstart;
 		thisbank += 2;
@@ -629,7 +601,7 @@ char *StealFromBankAligned(NKSystemInfo *si, unsigned long len)
 
 	if(myend < bend) /* new bank to my right */
 	{
-		memcpy(thisbank + 2, thisbank, (lastbank + 2 - thisbank) * sizeof *thisbank);
+		memmove(thisbank + 2, thisbank, (lastbank + 2 - thisbank) * sizeof *thisbank);
 		thisbank[0] = myend;
 		thisbank[1] = bend - myend;
 		thisbank += 2;
@@ -673,14 +645,16 @@ int allocate256MBInSegment(NKConfigurationInfo *ci, NKSystemInfo *si, int seg)
 }
 
 
-/* Main function for Wedge patch */
-
-void wedge(NKConfigurationInfo *ci, NKProcessorInfo *pi, NKSystemInfo *si, NKDiagnosticInfo *di, OSType rtasFour, unsigned long rtasProc, NKHWInfo *hi)
+void Wedge(NKConfigurationInfo *ci, NKProcessorInfo *pi, NKSystemInfo *si, NKDiagnosticInfo *di, OSType rtasFour, char *rtasProc, NKHWInfo *hi, int isDryRun)
 {
 	char ci_tmp[kConfigInfoSize], hi_tmp[kHardwareInfoSize];
 	int ret;
 
-	printf("Hello from the Wedge.\n");
+	if(isDryRun)
+		printf("Hello from the dry-run Wedge.\n");
+	else
+		printf("Hello from the Wedge.\n");
+
 	printf("      ConfigInfo (r3) @ %08x\n", ci);
 	printf("   ProcessorInfo (r4) @ %08x\n", pi);
 	printf("      SystemInfo (r5) @ %08x\n", si);
@@ -707,8 +681,12 @@ void wedge(NKConfigurationInfo *ci, NKProcessorInfo *pi, NKSystemInfo *si, NKDia
 	if(!ret)
 	{
 		printf("Copying modified ConfigInfo and HWInfo over the originals.\n\n");
-		memcpy(ci, ci_tmp, sizeof ci_tmp);
-		memcpy(hi, hi_tmp, sizeof hi_tmp);
+
+		if(!isDryRun)
+		{
+			memcpy(ci, ci_tmp, sizeof ci_tmp);
+			memcpy(hi, hi_tmp, sizeof hi_tmp);
+		}
 
 		DebugDumpPageMap((NKConfigurationInfo *)ci);
 	}
@@ -721,50 +699,10 @@ void wedge(NKConfigurationInfo *ci, NKProcessorInfo *pi, NKSystemInfo *si, NKDia
 	/* Insert more clever, interesting patches here. */
 
 
-	/* Uses r3-r9 -- compiler doesn't really need a prototype for this. */
 	printf("\nHanding over to the NanoKernel.\n");
-	NanoKernelJump(ci, pi, si, di, rtasFour, rtasProc, hi);
+	NanoKernel(ci, pi, si, di, rtasFour, rtasProc, hi);
 }
 
-
-/* Main function for MPW Tool */
-
-void main(void)
-{
-	char ci_tmp[kConfigInfoSize], hi_tmp[kHardwareInfoSize];
-	char *ci, *hi;
-	int ret;
-
-	printf("Hello from the (dry-run) Wedge.\n");
-
-	ci = (char *)0x68fef000UL;
-	printf("      ConfigInfo @ %08x\n", ci);
-
-	hi = *(char **)nkHWInfoPtr;
-	printf("    HardwareInfo @ %08x\n", hi);
-
-	printf("\n");
+/* End of Wedge.c */
 
 
-	DebugDumpPageMap((NKConfigurationInfo *)ci);
-
-	printf("Copying the system ConfigInfo and HardwareInfo structs.\n\n");
-	memcpy(ci_tmp, ci, sizeof ci_tmp);
-	memcpy(hi_tmp, hi, sizeof hi_tmp);
-
-	ret = PatchMacOSAddressSpace(kPatchInfoRecord | kPatchUniversalArea | kPatchConfigInfoPage | kPatchKDP | kPatchEDP,
-	                             0x68000000UL,
-	                             (NKConfigurationInfo *)ci, (NKConfigurationInfo *)ci_tmp,
-	                             (NKHWInfo *)hi, (NKHWInfo *)hi_tmp);
-
-	if(!ret)
-	{
-		printf("PatchMacOSAddressSpace succeeded (but was forbidden from patching the ROM).\n\n");
-		
-		DebugDumpPageMap((NKConfigurationInfo *)ci_tmp);
-	}
-	else
-	{
-		printf("PatchMacOSAddressSpace failed with error %d.\n", ret);
-	}
-}

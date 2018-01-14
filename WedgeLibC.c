@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 */
 
-#include "printf.h"
+#include "WedgeLibC.h"
 
 typedef void (*putcf) (void*,char);
 void asm_putc (char);
@@ -201,10 +201,47 @@ void tfp_format(char *fmt, va_list va)
 	}
 
 
-extern void printf(char *fmt, ...)
+extern int printf(char *fmt, ...)
 	{
 	va_list va;
 	va_start(va,fmt);
 	tfp_format(fmt,va);
 	va_end(va);
+	return 0; // should return character count
 	}
+
+
+extern void *memmove(void *dest, void *src, unsigned int n)
+{
+	unsigned int i;
+
+	char *d = (char *)dest;
+	char *s = (char *)src;
+
+	if(dest < src)			/* copy left to right */
+	{
+		for(i=0; i<n; i++) d[i] = s[i];
+	}
+	else					/* copy right to left */
+	{
+		for(i=n; i!=0; i--) d[i-1] = s[i-1];
+	}
+
+	return dest;
+}
+
+
+extern void *memcpy(void *dest, void *src, unsigned int n)
+{
+	return memmove(dest, src, n);
+}
+
+
+extern void *memset(void *dest, int v, unsigned int n)
+{
+	char *d = (char *)dest;
+
+	while(n) d[--n] = (char)v;
+
+	return dest;
+}

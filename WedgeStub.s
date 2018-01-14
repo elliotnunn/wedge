@@ -31,7 +31,7 @@ Magic	equ		'Wdg_'
 
 
 	MakeFunction __start
-	import .wedge
+	import .Wedge
 
 
 	;	Pointers in r20, scratch values in r0
@@ -78,11 +78,12 @@ Magic	equ		'Wdg_'
 
 	;	Go
 
-	b		.wedge
+	li		r10, 0							; isDryRun argument
+	b		.Wedge
 
 
 
-	MakeFunction NanoKernelJump
+	MakeFunction NanoKernel
 
 	lisori	r0, PA_ROM + NK
 

@@ -93,6 +93,11 @@ regs Kusti, 23.10.2004
 
 #include <stdarg.h>
 
-extern void printf(char *fmt, ...);
+// These barely match the prototypes in stdio.h
+extern int printf(char *fmt, ...);
+extern void *memmove(void *dest, void *src, unsigned int n);
+extern void *memcpy(void *dest, void *src, unsigned int n);
+extern void *memset(void *dest, int v, unsigned int n);
+
 
 #endif
