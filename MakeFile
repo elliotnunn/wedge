@@ -26,7 +26,7 @@ Apps = :Apps:
 {IM}Linker							Ä	{IM}Linker.c.o
 	ILink -d -t 'MPST' -c 'MPS ' -o {Targ} {MpwToolLibs68k} {Deps}
 
-{Apps}TestWedge						Ä	{IM}Wedge.c.x {IM}NKShim.s.x
+{Apps}TestWedge						Ä	{IM}Wedge.c.x
 	PPCLink -d -t 'APPL' -c 'siow' -o {Targ} {Deps} {SiowLibsPPC}
 	Rez -a "{RIncludes}SIOW.r" -d DEFAULT_SAVE_PREF=1 -o {Targ}
 

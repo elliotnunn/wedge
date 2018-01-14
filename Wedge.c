@@ -1,5 +1,4 @@
 #include "PPCInfoRecordsPriv.h"
-#include "NKShim.h"
 #include <MacTypes.h>
 
 
@@ -734,7 +733,6 @@ void main(void)
 {
 	char ci_tmp[kConfigInfoSize], hi_tmp[kHardwareInfoSize];
 	char *ci, *hi;
-	long nk_struct_ver, nk_struct_len;
 	int ret;
 
 	printf("Hello from the (dry-run) Wedge.\n");
@@ -742,7 +740,7 @@ void main(void)
 	ci = (char *)0x68fef000UL;
 	printf("      ConfigInfo @ %08x\n", ci);
 
-	NKLocateInfoRecord(6, &hi, &nk_struct_ver, &nk_struct_len);
+	hi = *(char **)nkHWInfoPtr;
 	printf("    HardwareInfo @ %08x\n", hi);
 
 	printf("\n");
